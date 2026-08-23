@@ -1,0 +1,16 @@
+# Credentials - never commit
+.streamlit/secrets.toml
+
+# Source data snapshots. These contain employee PII (names, sale codes,
+# scores) and are NOT needed at runtime - the app reads the live files
+# from Google Drive instead. Kept local only.
+*.xlsx
+Roleplay response/
+Data mapping/
+
+venv/
+__pycache__/
+*.pyc
+.DS_Store
+.claude/
+.agents/

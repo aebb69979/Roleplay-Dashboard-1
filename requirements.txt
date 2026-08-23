@@ -1,0 +1,11 @@
+# Floors match what this app was built and tested against. streamlit>=1.62
+# matters: the app uses st.container(key=...) for the card CSS hook,
+# st.columns(border=True), and width="stretch" (the replacement for the
+# now-removed use_container_width).
+streamlit>=1.62.0
+pandas>=2.2
+plotly>=6.0
+openpyxl>=3.1
+gspread>=6.2
+google-auth>=2.56
+google-api-python-client>=2.199
