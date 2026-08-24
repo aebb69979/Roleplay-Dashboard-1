@@ -97,6 +97,13 @@ def render_overview(df: pd.DataFrame) -> None:
                 trend, x="date", y="score_pct", markers=True,
                 labels={"score_pct": "Score (%)", "date": "Date"},
             )
+            # A vertical hairline at each x tick, so a point can be traced
+            # down to its date. Colour has to be set explicitly: Plotly's
+            # default gridcolor is white, which is invisible once clean_fig()
+            # makes the plot background transparent over the white card.
+            # Solid 1px in the card's border tone - one step off the surface,
+            # recessive enough to sit behind the line rather than compete.
+            fig.update_xaxes(showgrid=True, gridcolor="#E4E7EC", gridwidth=1)
             st.plotly_chart(clean_fig(fig), width="stretch")
         else:
             st.info("No data for the selected filters.")
