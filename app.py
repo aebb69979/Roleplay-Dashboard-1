@@ -8,6 +8,13 @@ from data.transform import build_dashboard_df
 
 st.set_page_config(page_title="Roleplay Dashboard", page_icon="\U0001f3ad", layout="wide")
 
+# Viewers are in Thailand, but the app is not: Streamlit Community Cloud runs
+# its containers in UTC, so a naive pd.Timestamp.now() reported a time 7 hours
+# behind for everyone. Pin the display timezone rather than trusting the
+# server's locale. (The Form's own timestamps already arrive in the form's
+# timezone and are deliberately left as-is.)
+DISPLAY_TZ = "Asia/Bangkok"
+
 require_passcode()
 
 # Cards: st.container(border=True, key=...) gets a stable ".st-key-<key>"
@@ -53,7 +60,7 @@ def load_dashboard() -> tuple[pd.DataFrame, pd.Timestamp]:
     df["date"] = pd.to_datetime(df["timestamp"]).dt.date
     # Returned alongside the frame so the header can report when the data
     # was actually fetched, rather than when the page happened to re-render.
-    return df, pd.Timestamp.now()
+    return df, pd.Timestamp.now(tz=DISPLAY_TZ)
 
 
 def render_overview(df: pd.DataFrame) -> None:
@@ -162,7 +169,7 @@ def render_all_responses(df: pd.DataFrame) -> None:
 with st.spinner("Loading data..."):
     df, loaded_at = load_dashboard()
 
-last_updated = loaded_at.strftime("%Y-%m-%d %H:%M")
+last_updated = loaded_at.strftime("%Y-%m-%d %H:%M (%Z)")
 
 header_col, refresh_col = st.columns([5, 1])
 with header_col:
