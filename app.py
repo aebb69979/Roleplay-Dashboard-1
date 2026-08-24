@@ -41,17 +41,19 @@ def clean_fig(fig):
     return fig
 
 
-def zebra_style(df: pd.DataFrame):
-    """Alternating row background - st.dataframe renders on canvas (not real
-    DOM rows), so plain CSS nth-child striping doesn't work; a pandas Styler
-    background-color per cell does (Streamlit renders that through)."""
-    styled = df.reset_index(drop=True)
-
-    def _stripe(row: pd.Series) -> list[str]:
-        color = "#F7F8FA" if row.name % 2 else "#FFFFFF"
-        return [f"background-color: {color}"] * len(row)
-
-    return styled.style.apply(_stripe, axis=1)
+# Cached as one unit. The module-level load below runs on EVERY rerun -
+# every widget click, by every viewer - and the classify/join/score pipeline
+# is pure-Python, so it holds the GIL and serialises across viewers. Caching
+# it makes that work happen once per TTL for the whole process instead of
+# once per interaction per viewer. The TTL matches the responses feed; the
+# roster keeps its own longer TTL on the underlying fetch.
+@st.cache_data(ttl=600, show_spinner=False)
+def load_dashboard() -> tuple[pd.DataFrame, pd.Timestamp]:
+    df = build_dashboard_df(ingest.fetch_responses(), ingest.fetch_mapping())
+    df["date"] = pd.to_datetime(df["timestamp"]).dt.date
+    # Returned alongside the frame so the header can report when the data
+    # was actually fetched, rather than when the page happened to re-render.
+    return df, pd.Timestamp.now()
 
 
 def render_overview(df: pd.DataFrame) -> None:
@@ -111,7 +113,7 @@ def render_overview(df: pd.DataFrame) -> None:
             "timestamp", "evaluator_role", "evaluee_position", "sale_code_raw",
             "sale_code_confidence", "sale_code_extracted_name", "LOWER_FULL_Name_TH", "score_pct",
         ]
-        st.dataframe(zebra_style(df.loc[df["needs_review"], review_cols]), width="stretch")
+        st.dataframe(df.loc[df["needs_review"], review_cols], width="stretch")
 
 
 def render_all_responses(df: pd.DataFrame) -> None:
@@ -153,17 +155,14 @@ def render_all_responses(df: pd.DataFrame) -> None:
             filtered = filtered[filtered["needs_review"]]
 
         display = filtered[s.RESPONSE_TABLE_COLUMNS].rename(columns=s.DISPLAY_LABELS)
-        st.dataframe(zebra_style(display), width="stretch", height=600)
+        st.dataframe(display, width="stretch", height=600)
         st.caption(f"{len(filtered)} of {len(df)} rows shown")
 
 
 with st.spinner("Loading data..."):
-    responses = ingest.fetch_responses()
-    mapping = ingest.fetch_mapping()
-    df = build_dashboard_df(responses, mapping)
+    df, loaded_at = load_dashboard()
 
-df["date"] = pd.to_datetime(df["timestamp"]).dt.date
-last_updated = pd.Timestamp.now().strftime("%Y-%m-%d %H:%M")
+last_updated = loaded_at.strftime("%Y-%m-%d %H:%M")
 
 header_col, refresh_col = st.columns([5, 1])
 with header_col:
@@ -174,13 +173,28 @@ with header_col:
     )
 with refresh_col:
     if st.button("\U0001f504 Refresh data"):
-        st.cache_data.clear()
+        # Scoped rather than st.cache_data.clear(), which would also evict
+        # the roster and force a re-download of the .xlsx (~1.6s) that has a
+        # deliberate 60-min TTL because it changes rarely. Both clears are
+        # needed and neither is sufficient alone: load_dashboard is built
+        # from fetch_responses, so clearing only the frame would rebuild it
+        # from still-cached responses, and clearing only the responses would
+        # leave the cached frame in place. Process-wide, so this refreshes
+        # for every viewer, not just the one who clicked.
+        ingest.fetch_responses.clear()
+        load_dashboard.clear()
         st.rerun()
 
-tab_overview, tab_all = st.tabs(["Overview", "All Responses"])
+# Deliberately not st.tabs: it renders every tab body server-side on every
+# rerun (switching is client-side only), so the heavy All Responses table
+# was being built even for viewers sitting on Overview. This trades instant
+# client-side switching for never rendering the view nobody is looking at.
+view = st.radio(
+    "View", ["Overview", "All Responses"],
+    horizontal=True, label_visibility="collapsed", key="view",
+)
 
-with tab_overview:
+if view == "Overview":
     render_overview(df)
-
-with tab_all:
+else:
     render_all_responses(df)

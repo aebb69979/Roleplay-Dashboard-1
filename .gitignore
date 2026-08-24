@@ -1,5 +1,8 @@
 # Credentials - never commit
 .streamlit/secrets.toml
+# Google service-account key files. The app reads credentials from
+secrets.toml only, so no key file on disk is ever needed at runtime.
+*.json
 
 # Source data snapshots. These contain employee PII (names, sale codes,
 # scores) and are NOT needed at runtime - the app reads the live files

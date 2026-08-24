@@ -33,7 +33,10 @@ Caching is process-wide, not per-visitor, so all viewers within a TTL window
 see the same snapshot and one fetch serves everyone — this keeps the app well
 inside Google's free API quotas regardless of viewer count. Refresh is lazy:
 the cache only recomputes when a page load happens after the TTL expires. The
-header's **Refresh data** button clears it on demand (for everyone).
+header's **Refresh data** button clears the responses and the derived table on
+demand (for everyone). It deliberately leaves the roster cached: that download
+costs ~1.6s and the roster keeps its own hour-long TTL, so it still refreshes
+on the first load after that expires.
 
 ## Data quality: Sale Code
 
@@ -145,7 +148,7 @@ the source files.
 ## Layout
 
 ```
-app.py              # page shell, tabs, charts, tables
+app.py              # page shell, view switch, charts, tables
 auth.py             # passcode gate
 data/
   schema.py         # column layout, labels, criteria text
