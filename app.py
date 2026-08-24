@@ -169,13 +169,22 @@ def render_all_responses(df: pd.DataFrame) -> None:
 with st.spinner("Loading data..."):
     df, loaded_at = load_dashboard()
 
+# Deliberately computed at render time rather than inside the cached
+# function: the absolute stamp is frozen with the data, but the "N min old"
+# must keep counting up as viewers interact, otherwise it would itself be
+# stale. It measures the age of the responses feed (load_dashboard re-runs
+# only after fetch_responses has expired, so the two stay in step); the
+# roster rides its own hour-long TTL and can be older than this number.
+age = pd.Timestamp.now(tz=DISPLAY_TZ) - loaded_at
+age_minutes = int(age.total_seconds() // 60)
+freshness = "just now" if age_minutes < 1 else f"{age_minutes} min old"
 last_updated = loaded_at.strftime("%Y-%m-%d %H:%M (%Z)")
 
 header_col, refresh_col = st.columns([5, 1])
 with header_col:
     st.title("Roleplay Training Dashboard")
     st.caption(
-        f"{len(df)} responses · refreshed {last_updated} · "
+        f"{len(df)} responses · data as of {last_updated} · {freshness} · "
         f"{int(df['needs_review'].sum())} need review"
     )
 with refresh_col:
